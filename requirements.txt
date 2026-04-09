@@ -1,0 +1,11 @@
+# 仅打包依赖；运行 GUI 仅需 Python 标准库（tkinter、winreg）
+pyinstaller>=6.0.0
+
+# 协议管理器打包（双击 protocol_manager\build_exe.bat）：
+#   python -m pip install -r requirements.txt
+#   python -m PyInstaller --noconfirm protocol_manager\protocol_manager.spec
+# 输出：dist\本地协议配置管理器.exe
+#
+# 目录查询工具打包（双击 search_tool_app\build_exe.bat）：
+#   python -m PyInstaller --noconfirm search_tool_app\search_tool.spec
+# 输出：dist\目录字符串查询工具.exe
