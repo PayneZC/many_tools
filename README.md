@@ -1,6 +1,6 @@
 # many_tools
 
-Windows 实用工具集合，包含三个桌面工具：
+Windows 实用工具集合，包含四个桌面工具：
 
 ## 工具列表
 
@@ -34,6 +34,17 @@ Windows 自定义 URL 协议注册表管理工具。
 
 **技术栈：** Python + tkinter + winreg
 
+### 4. 网络认证自动保活工具 (network_auth_manager)
+用于校园网/企业网等需要 Web 认证的网络环境自动保活。
+
+**功能：**
+- 定时访问外网地址判断是否掉线
+- 检测到掉线后通过爬虫方式提交账号密码并触发登录
+- 支持静默执行和显示执行两种模式（显示模式仅用于排查）
+- 固定使用内置认证地址与探测地址，仅维护账号密码和检测频率配置
+
+**技术栈：** Python + tkinter + urllib + pystray + pillow
+
 ## 环境要求
 
 - Python 3.x
@@ -52,5 +63,6 @@ pip install -r requirements.txt
 - `recoil_macro/build_exe.bat` - 打包压枪宏
 - `search_tool_app/build_exe.bat` - 打包目录查询工具
 - `protocol_manager/build_exe.bat` - 打包协议管理器
+- `network_auth_manager/build_exe.bat` - 打包网络认证自动保活工具
 
 运行对应的 .bat 文件即可生成独立的 .exe 文件到 `dist/` 目录。

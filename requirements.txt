@@ -1,5 +1,7 @@
 # 仅打包依赖；运行 GUI 仅需 Python 标准库（tkinter、winreg）
 pyinstaller>=6.0.0
+pillow
+pystray
 
 # 协议管理器打包（双击 protocol_manager\build_exe.bat）：
 #   python -m pip install -r requirements.txt
