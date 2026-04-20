@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul
 set "ROOT=%~dp0.."
+set "TOOL_DIR=%ROOT%\protocol_manager"
 cd /d "%ROOT%"
 
 echo [1/2] 检查 PyInstaller...
@@ -11,9 +12,10 @@ if errorlevel 1 (
 )
 
 echo [2/2] 打包单文件 exe...
-python -m PyInstaller --noconfirm protocol_manager\protocol_manager.spec
+python -m PyInstaller --noconfirm --onefile --noconsole --specpath "%TOOL_DIR%" --name "本地协议配置管理器" "%TOOL_DIR%\main.py"
 if errorlevel 1 exit /b 1
 
 echo.
 echo 完成: dist\本地协议配置管理器.exe
+echo spec: protocol_manager\本地协议配置管理器.spec
 exit /b 0
