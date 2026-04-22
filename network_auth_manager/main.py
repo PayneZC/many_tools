@@ -135,6 +135,7 @@ class AuthConfig:
     username: str = ""
     password: str = ""
     execute_mode: str = "visible"  # visible / silent
+    auto_start_monitor: bool = True  # 程序启动后是否自动启动监听
 
 
 class AuthClient:
@@ -349,11 +350,14 @@ class NetworkAuthManagerApp(tk.Tk):
         self._tray_icon: pystray.Icon | None = None
         self._is_quitting = False
         self._icon_photo: tk.PhotoImage | None = None
+        self._is_monitor_running = False
 
         self._build_ui()
         self._load_config_to_ui()
         self._apply_window_icon()
         self.after(120, self._drain_queue)
+        # 窗口初始化完成后，根据配置自动启动监听。
+        self.after(300, self._auto_start_monitor_if_enabled)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _build_ui(self) -> None:
@@ -385,13 +389,18 @@ class NetworkAuthManagerApp(tk.Tk):
         self.var_mode = tk.StringVar(value="visible")
         ttk.Radiobutton(perf, text="显示执行", value="visible", variable=self.var_mode).pack(side=tk.LEFT, padx=(6, 4))
         ttk.Radiobutton(perf, text="静默执行", value="silent", variable=self.var_mode).pack(side=tk.LEFT)
+        self.var_auto_start = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            perf,
+            text="启动程序时自动启动监听",
+            variable=self.var_auto_start,
+        ).pack(side=tk.LEFT, padx=(16, 0))
 
         actions = ttk.Frame(root)
         actions.grid(row=2, column=0, columnspan=2, sticky="w", pady=(0, 8))
-        self.btn_start = ttk.Button(actions, text="启动监控", command=self._start_monitor)
-        self.btn_start.pack(side=tk.LEFT)
-        self.btn_stop = ttk.Button(actions, text="停止监控", command=self._stop_monitor, state=tk.DISABLED)
-        self.btn_stop.pack(side=tk.LEFT, padx=(8, 0))
+        # 使用单一开关按钮控制监听启动与停止，减少操作复杂度。
+        self.btn_toggle_monitor = ttk.Button(actions, text="开启监听", command=self._toggle_monitor)
+        self.btn_toggle_monitor.pack(side=tk.LEFT)
         ttk.Button(actions, text="立即检测并尝试登录", command=self._manual_check_and_login).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Button(actions, text="保存配置", command=self._save_config_from_ui).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Button(actions, text="清空日志", command=self._clear_logs).pack(side=tk.LEFT, padx=(8, 0))
@@ -423,8 +432,8 @@ class NetworkAuthManagerApp(tk.Tk):
                     self.var_status.set(text)
                 elif action == "running":
                     running = text == "1"
-                    self.btn_start.configure(state=tk.DISABLED if running else tk.NORMAL)
-                    self.btn_stop.configure(state=tk.NORMAL if running else tk.DISABLED)
+                    self._is_monitor_running = running
+                    self.btn_toggle_monitor.configure(text="关闭监听" if running else "开启监听")
         except queue.Empty:
             pass
         finally:
@@ -527,6 +536,8 @@ class NetworkAuthManagerApp(tk.Tk):
             username=self.var_username.get().strip(),
             password=self.var_password.get(),
             execute_mode=self.var_mode.get().strip() or "visible",
+            # 记录用户对“启动后自动监听”的选择，便于下次启动沿用。
+            auto_start_monitor=bool(self.var_auto_start.get()),
         )
         if cfg.execute_mode not in {"visible", "silent"}:
             cfg.execute_mode = "visible"
@@ -539,6 +550,7 @@ class NetworkAuthManagerApp(tk.Tk):
         self.var_username.set(cfg.username)
         self.var_password.set(cfg.password)
         self.var_mode.set(cfg.execute_mode)
+        self.var_auto_start.set(bool(cfg.auto_start_monitor))
 
     def _load_config(self) -> AuthConfig:
         if not CONFIG_FILE.exists():
@@ -564,6 +576,19 @@ class NetworkAuthManagerApp(tk.Tk):
             return cfg
         except Exception:  # noqa: BLE001
             return AuthConfig()
+
+    def _auto_start_monitor_if_enabled(self) -> None:
+        # 启动后根据配置自动拉起监听，避免每次手动点击。
+        if bool(self.var_auto_start.get()):
+            self._queue_log("已启用“启动自动监听”，正在自动开启监听")
+            self._start_monitor()
+
+    def _toggle_monitor(self) -> None:
+        # 单按钮切换监听状态：运行中则停止，未运行则启动。
+        if self._is_monitor_running:
+            self._stop_monitor()
+        else:
+            self._start_monitor()
 
     def _save_config_from_ui(self) -> None:
         cfg = self._read_ui_config()

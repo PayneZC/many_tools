@@ -3,5 +3,6 @@
   "timeout_seconds": 10,
   "username": "zhaocp",
   "password": "123456",
-  "execute_mode": "silent"
+  "execute_mode": "silent",
+  "auto_start_monitor": true
 }
