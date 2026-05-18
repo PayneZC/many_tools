@@ -28,5 +28,9 @@ Thumbs.db
 # PyInstaller
 *.spec
 
+# 压枪宏运行时生成的用户配置
+recoil_macro/recoil_presets.json
+recoil_macro/build/
+
 # Local pycs (from PyInstaller)
 localpycs/

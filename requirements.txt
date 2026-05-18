@@ -1,7 +1,12 @@
-# 仅打包依赖；运行 GUI 仅需 Python 标准库（tkinter、winreg）
+# 打包依赖
 pyinstaller>=6.0.0
 pillow
 pystray
+
+# 压枪宏 recoil_macro 运行依赖
+opencv-python>=4.8.0
+numpy>=1.24.0
+pynput>=1.7.6
 
 # 协议管理器打包（双击 protocol_manager\build_exe.bat）：
 #   python -m pip install -r requirements.txt

@@ -4,18 +4,13 @@ set "ROOT=%~dp0.."
 set "TOOL_DIR=%ROOT%\recoil_macro"
 cd /d "%ROOT%"
 
-echo [1/2] 检查 PyInstaller...
-python -m pip install "pyinstaller>=6.0.0" -q
+rem 使用 UTF-8 调用 PowerShell，避免中文参数乱码
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); & '%TOOL_DIR%\build_exe.ps1'"
 if errorlevel 1 (
-  echo pip 安装失败，请检查 Python 是否在 PATH 中。
+  echo 打包失败。
+  pause
   exit /b 1
 )
 
-echo [2/2] 打包单文件 exe...
-python -m PyInstaller --noconfirm --onefile --noconsole --specpath "%TOOL_DIR%" --name "鼠标辅助工具" "%TOOL_DIR%\recoil_macro.py"
-if errorlevel 1 exit /b 1
-
-echo.
-echo 完成: dist\鼠标辅助工具.exe
-echo spec: recoil_macro\鼠标辅助工具.spec
+pause
 exit /b 0

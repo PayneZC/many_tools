@@ -10,11 +10,124 @@ Windows 压枪宏（Logitech Lua 脚本的 Python 实现）。
 from __future__ import annotations
 
 import ctypes
+import importlib.util
 import random
+import subprocess
+import sys
 import threading
 import time
 import tkinter as tk
 from dataclasses import dataclass, field
+from pathlib import Path
+from tkinter import messagebox, ttk
+
+def _app_dir() -> Path:
+    """脚本目录；打包后为 exe 所在目录（配置写入同级）。"""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+_APP_DIR = _app_dir()
+# 依赖清单使用项目根目录 requirements.txt（与其他工具一致）
+_REQUIREMENTS_FILE = _APP_DIR.parent / "requirements.txt" if not getattr(sys, "frozen", False) else _APP_DIR / "requirements.txt"
+
+_RUNTIME_MODULES = (
+    ("cv2", "opencv-python"),
+    ("numpy", "numpy"),
+    ("PIL", "pillow"),
+    ("pynput", "pynput"),
+)
+
+
+def _missing_modules() -> list[tuple[str, str]]:
+    """返回缺失的 (模块名, pip 包名) 列表。"""
+    missing: list[tuple[str, str]] = []
+    for mod_name, pip_name in _RUNTIME_MODULES:
+        try:
+            __import__(mod_name)
+        except ImportError:
+            missing.append((mod_name, pip_name))
+    return missing
+
+
+def _try_install_dependencies() -> bool:
+    """使用当前解释器自动安装 requirements.txt。"""
+    if not _REQUIREMENTS_FILE.is_file():
+        return False
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-r", str(_REQUIREMENTS_FILE)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=300,
+            check=False,
+        )
+        return proc.returncode == 0 and not _missing_modules()
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def _show_dependency_dialog(title: str, message: str, ask_install: bool) -> bool:
+    """弹窗提示；若 ask_install 为 True 则询问是否自动安装。"""
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        if ask_install:
+            do_install = messagebox.askyesno(title, message)
+        else:
+            messagebox.showerror(title, message)
+            do_install = False
+        root.destroy()
+        return do_install
+    except Exception:
+        print(message, file=sys.stderr)
+        return False
+
+
+def _ensure_runtime_dependencies() -> None:
+    """启动前检查第三方库；可尝试自动安装，失败则给出明确指引。"""
+    # 打包 exe 已内置依赖，无需 pip 检查
+    if getattr(sys, "frozen", False):
+        return
+    if not _missing_modules():
+        return
+
+    py_path = sys.executable
+    req_hint = str(_REQUIREMENTS_FILE)
+    missing_pkgs = " ".join(pkg for _, pkg in _missing_modules())
+
+    prompt = (
+        f"缺少运行依赖：{missing_pkgs}\n\n"
+        f"当前 Python：\n{py_path}\n\n"
+        "是否现在自动安装？（需要联网）"
+    )
+    if _show_dependency_dialog("压枪脚本 - 依赖缺失", prompt, ask_install=True):
+        if _try_install_dependencies():
+            return
+        fail_msg = (
+            "自动安装失败。\n\n"
+            f"请手动在命令行执行：\n"
+            f'  "{py_path}" -m pip install -r "{req_hint}"\n\n'
+            "若提示找不到 python，请使用 Miniconda 或运行 build_exe.bat 生成 exe。"
+        )
+        _show_dependency_dialog("压枪脚本 - 安装失败", fail_msg, ask_install=False)
+        raise SystemExit(1)
+
+    manual_msg = (
+        f"缺少运行依赖：{missing_pkgs}\n\n"
+        f"当前 Python：\n{py_path}\n\n"
+        "请任选一种方式安装：\n"
+        f'1) 在项目根目录执行："{py_path}" -m pip install -r requirements.txt\n'
+        f'2) 或打包为 exe：recoil_macro\\build_exe.bat'
+    )
+    _show_dependency_dialog("压枪脚本 - 依赖缺失", manual_msg, ask_install=False)
+    raise SystemExit(1)
+
+
+_ensure_runtime_dependencies()
 
 import cv2
 import numpy as np
@@ -28,12 +141,30 @@ try:
         TrackerConfig,
         to_gray,
     )
+    from .config import (
+        CONFIG_PATH,
+        RecoilConfigFile,
+        RecoilPreset,
+        find_preset,
+        load_config,
+        new_preset_id,
+        save_config,
+    )
 except ImportError:
     from follow_core import (
         RobustPointTracker,
         TRACK_REGION_HALF,
         TrackerConfig,
         to_gray,
+    )
+    from config import (
+        CONFIG_PATH,
+        RecoilConfigFile,
+        RecoilPreset,
+        find_preset,
+        load_config,
+        new_preset_id,
+        save_config,
     )
 
 
@@ -96,6 +227,16 @@ class RuntimeState:
     debug_aim_local: tuple[float, float] | None = None
     game_mode: bool = False
     debug_capture_blocked: bool = False
+    # 压枪参数（可由界面方案同步）
+    recoil_interval: float = 0.018
+    recoil_move_pixels: int = 14
+
+
+def apply_preset_to_state(state: RuntimeState, preset: RecoilPreset) -> None:
+    """将方案参数写入运行时状态。"""
+    with state.lock:
+        state.recoil_interval = max(0.005, preset.interval_ms / 1000.0)
+        state.recoil_move_pixels = max(1, int(preset.move_pixels))
 
 
 def run_recoil_loop(state: RuntimeState) -> None:
@@ -106,18 +247,15 @@ def run_recoil_loop(state: RuntimeState) -> None:
 
     try:
         time.sleep(0.001)
-        y_count = 0
         while is_pressed(VK_LBUTTON):
             with state.lock:
                 if not (state.recoil_enabled and state.switch_enabled):
                     break
+                interval = state.recoil_interval
+                move_y = state.recoil_move_pixels
 
-            y_step = 28 if y_count == 0 else 14 + y_count
-            if y_count < 8:
-                y_count += 1
-
-            move_mouse_relative(0, y_step)
-            time.sleep(0.018)
+            move_mouse_relative(0, move_y)
+            time.sleep(interval)
     finally:
         with state.lock:
             state.running_loop = False
@@ -314,71 +452,314 @@ def run_lock_mouse_loop(state: RuntimeState) -> None:
             state.debug_capture_blocked = False
 
 
+def _setup_style(root: tk.Tk) -> ttk.Style:
+    """统一界面字体与间距。"""
+    style = ttk.Style(root)
+    if "vista" in style.theme_names():
+        style.theme_use("vista")
+    style.configure(".", font=("Microsoft YaHei UI", 9))
+    style.configure("Title.TLabel", font=("Microsoft YaHei UI", 13, "bold"))
+    style.configure("Subtitle.TLabel", font=("Microsoft YaHei UI", 9), foreground="#555555")
+    style.configure("Status.TLabel", font=("Microsoft YaHei UI", 9, "bold"), foreground="#1a7f37")
+    style.configure("TLabelframe.Label", font=("Microsoft YaHei UI", 9, "bold"))
+    style.configure("Hint.TLabel", font=("Microsoft YaHei UI", 8), foreground="#777777")
+    return style
+
+
 def main() -> None:
     state = RuntimeState()
+    config_data = load_config()
+
     root = tk.Tk()
-    root.title("压枪脚本")
-    root.geometry("360x280")
-    root.resizable(False, False)
+    root.title("压枪 / 鼠标辅助")
+    root.geometry("440x580")
+    root.minsize(420, 540)
+    _setup_style(root)
 
-    tip1 = tk.Label(root, text="脚本运行中", font=("Microsoft YaHei UI", 12, "bold"))
-    tip1.pack(pady=(15, 5))
+    container = ttk.Frame(root, padding=12)
+    container.pack(fill=tk.BOTH, expand=True)
 
-    mode_label = tk.Label(root, text="当前模式：压枪模式", font=("Microsoft YaHei UI", 10))
-    mode_label.pack(pady=(0, 5))
+    header = ttk.Frame(container)
+    header.pack(fill=tk.X, pady=(0, 10))
+    ttk.Label(header, text="压枪 / 鼠标辅助", style="Title.TLabel").pack(side=tk.LEFT)
+    status_label = ttk.Label(header, text="● 运行中", style="Status.TLabel")
+    status_label.pack(side=tk.RIGHT)
 
-    def toggle_mode():
+    mode_var = tk.StringVar(value="recoil")
+    mode_badge = ttk.Label(container, text="当前模式：压枪模式", style="Subtitle.TLabel")
+    mode_badge.pack(anchor=tk.W, pady=(0, 6))
+
+    tip2 = ttk.Label(
+        container,
+        text="按住右键激活，按住左键执行压枪",
+        style="Subtitle.TLabel",
+        wraplength=400,
+    )
+    tip2.pack(anchor=tk.W, pady=(0, 8))
+
+    mode_frame = ttk.LabelFrame(container, text="工作模式", padding=10)
+    mode_frame.pack(fill=tk.X, pady=(0, 8))
+
+    def refresh_mode_ui() -> None:
+        is_recoil = mode_var.get() == "recoil"
         with state.lock:
-            if state.mode == "recoil":
-                state.mode = "lock"
-                mode_label.config(text="当前模式：跟随模式")
-                btn.config(text="切换为压枪模式")
-                tip2.config(text="按住右键激活，按住左键跟随目标区域")
-                sens_frame.pack(after=btn, pady=(0, 5))
-            else:
-                state.mode = "recoil"
-                mode_label.config(text="当前模式：压枪模式")
-                btn.config(text="切换为跟随模式")
-                tip2.config(text="按住右键激活，按住左键执行压枪")
-                sens_frame.pack_forget()
+            state.mode = "recoil" if is_recoil else "lock"
+        mode_badge.config(text=f"当前模式：{'压枪模式' if is_recoil else '跟随模式'}")
+        tip2.config(
+            text="按住右键激活，按住左键执行压枪"
+            if is_recoil
+            else "按住右键激活，按住左键跟随目标区域"
+        )
+        if is_recoil:
+            recoil_panel.pack(fill=tk.X, pady=(0, 8))
+            follow_panel.pack_forget()
+        else:
+            recoil_panel.pack_forget()
+            follow_panel.pack(fill=tk.X, pady=(0, 8))
 
-    btn = tk.Button(root, text="切换为跟随模式", command=toggle_mode, width=20, height=1)
-    btn.pack(pady=(0, 5))
+    ttk.Radiobutton(
+        mode_frame, text="压枪模式", value="recoil", variable=mode_var, command=refresh_mode_ui
+    ).grid(row=0, column=0, sticky=tk.W, padx=(0, 16))
+    ttk.Radiobutton(
+        mode_frame, text="跟随模式", value="lock", variable=mode_var, command=refresh_mode_ui
+    ).grid(row=0, column=1, sticky=tk.W)
 
-    sens_frame = tk.Frame(root)
-    sens_label = tk.Label(sens_frame, text="跟随灵敏度:", font=("Microsoft YaHei UI", 9))
-    sens_label.pack(side=tk.LEFT, padx=(0, 5))
+    # —— 压枪参数与多方案 ——
+    recoil_panel = ttk.LabelFrame(container, text="压枪参数", padding=10)
+    preset_label_to_id: dict[str, str] = {}
+    name_var = tk.StringVar()
+    interval_var = tk.DoubleVar(value=18.0)
+    move_var = tk.IntVar(value=14)
+    hz_hint = tk.StringVar(value="约 55.6 次/秒")
 
-    def on_sensitivity_change(val):
+    def _preset_label(preset: RecoilPreset) -> str:
+        return f"{preset.name}  ({preset.interval_ms:.0f}ms / {preset.move_pixels}px)"
+
+    def _selected_preset() -> RecoilPreset | None:
+        pid = preset_label_to_id.get(preset_combo.get(), "")
+        return find_preset(config_data, pid)
+
+    def _select_preset_in_combo(preset: RecoilPreset) -> None:
+        preset_combo.set(_preset_label(preset))
+        config_data.active_preset_id = preset.id
+
+    def _refresh_preset_combo() -> None:
+        preset_label_to_id.clear()
+        labels: list[str] = []
+        for preset in config_data.presets:
+            label = _preset_label(preset)
+            labels.append(label)
+            preset_label_to_id[label] = preset.id
+        preset_combo["values"] = labels
+        active = find_preset(config_data, config_data.active_preset_id) or config_data.presets[0]
+        _select_preset_in_combo(active)
+
+    def _load_preset_to_ui(preset: RecoilPreset) -> None:
+        name_var.set(preset.name)
+        interval_var.set(preset.interval_ms)
+        move_var.set(preset.move_pixels)
+        apply_preset_to_state(state, preset)
+        _update_hz_hint()
+
+    def _update_hz_hint() -> None:
+        ms = max(1.0, interval_var.get())
+        hz_hint.set(f"约 {1000.0 / ms:.1f} 次/秒")
+
+    def _sync_runtime_from_ui() -> None:
+        pid = preset_label_to_id.get(preset_combo.get(), "tmp")
+        apply_preset_to_state(
+            state,
+            RecoilPreset(
+                id=pid,
+                name=name_var.get().strip() or "未命名",
+                interval_ms=float(interval_var.get()),
+                move_pixels=int(move_var.get()),
+            ),
+        )
+        _update_hz_hint()
+
+    def on_preset_selected(_event: object | None = None) -> None:
+        preset = _selected_preset()
+        if preset is None:
+            return
+        config_data.active_preset_id = preset.id
+        _load_preset_to_ui(preset)
+
+    def on_param_change(*_args: object) -> None:
+        _sync_runtime_from_ui()
+
+    def on_save_preset() -> None:
+        preset = _selected_preset()
+        name = name_var.get().strip() or "未命名"
+        interval_ms = float(interval_var.get())
+        move_pixels = int(move_var.get())
+        if interval_ms < 5:
+            messagebox.showwarning("参数无效", "压枪间隔不能小于 5 毫秒。")
+            return
+        if move_pixels < 1:
+            messagebox.showwarning("参数无效", "移动距离不能小于 1 像素。")
+            return
+
+        if preset is None:
+            preset = RecoilPreset(new_preset_id(), name, interval_ms, move_pixels)
+            config_data.presets.append(preset)
+            config_data.active_preset_id = preset.id
+        else:
+            preset.name = name
+            preset.interval_ms = interval_ms
+            preset.move_pixels = move_pixels
+
+        save_config(config_data)
+        _refresh_preset_combo()
+        _select_preset_in_combo(preset)
+        messagebox.showinfo("已保存", f"方案「{name}」已写入配置文件。")
+
+    def on_new_preset() -> None:
+        preset = RecoilPreset(
+            new_preset_id(),
+            f"方案{len(config_data.presets) + 1}",
+            interval_ms=float(interval_var.get()),
+            move_pixels=int(move_var.get()),
+        )
+        config_data.presets.append(preset)
+        config_data.active_preset_id = preset.id
+        save_config(config_data)
+        _refresh_preset_combo()
+        _select_preset_in_combo(preset)
+        _load_preset_to_ui(preset)
+
+    def on_delete_preset() -> None:
+        if len(config_data.presets) <= 1:
+            messagebox.showwarning("无法删除", "至少保留一条压枪方案。")
+            return
+        preset = _selected_preset()
+        if preset is None:
+            return
+        if not messagebox.askyesno("确认删除", f"确定删除方案「{preset.name}」吗？"):
+            return
+        config_data.presets = [p for p in config_data.presets if p.id != preset.id]
+        config_data.active_preset_id = config_data.presets[0].id
+        save_config(config_data)
+        _refresh_preset_combo()
+        on_preset_selected()
+
+    recoil_panel.columnconfigure(1, weight=1)
+
+    ttk.Label(recoil_panel, text="配置方案").grid(row=0, column=0, sticky=tk.W, pady=2)
+    preset_row = ttk.Frame(recoil_panel)
+    preset_row.grid(row=0, column=1, columnspan=2, sticky=tk.EW, pady=2)
+    preset_row.columnconfigure(0, weight=1)
+    preset_combo = ttk.Combobox(preset_row, state="readonly", width=28)
+    preset_combo.grid(row=0, column=0, sticky=tk.EW)
+    preset_combo.bind("<<ComboboxSelected>>", on_preset_selected)
+
+    btn_row = ttk.Frame(recoil_panel)
+    btn_row.grid(row=1, column=0, columnspan=3, sticky=tk.EW, pady=(4, 8))
+    ttk.Button(btn_row, text="新建方案", command=on_new_preset, width=10).pack(side=tk.LEFT, padx=(0, 6))
+    ttk.Button(btn_row, text="保存方案", command=on_save_preset, width=10).pack(side=tk.LEFT, padx=(0, 6))
+    ttk.Button(btn_row, text="删除方案", command=on_delete_preset, width=10).pack(side=tk.LEFT)
+
+    ttk.Label(recoil_panel, text="方案名称").grid(row=2, column=0, sticky=tk.W, pady=2)
+    ttk.Entry(recoil_panel, textvariable=name_var, width=24).grid(
+        row=2, column=1, columnspan=2, sticky=tk.EW, pady=2
+    )
+
+    ttk.Label(recoil_panel, text="移动距离").grid(row=3, column=0, sticky=tk.W, pady=2)
+    move_spin = ttk.Spinbox(
+        recoil_panel, from_=1, to=80, textvariable=move_var, width=8, command=on_param_change
+    )
+    move_spin.grid(row=3, column=1, sticky=tk.W, pady=2)
+    ttk.Label(recoil_panel, text="像素 / 次", style="Hint.TLabel").grid(row=3, column=2, sticky=tk.W)
+
+    ttk.Label(recoil_panel, text="压枪间隔").grid(row=4, column=0, sticky=tk.W, pady=2)
+    interval_spin = ttk.Spinbox(
+        recoil_panel,
+        from_=5,
+        to=200,
+        increment=1,
+        textvariable=interval_var,
+        width=8,
+        command=on_param_change,
+    )
+    interval_spin.grid(row=4, column=1, sticky=tk.W, pady=2)
+    ttk.Label(recoil_panel, textvariable=hz_hint, style="Hint.TLabel").grid(row=4, column=2, sticky=tk.W)
+
+    cfg_hint = ttk.Label(
+        recoil_panel,
+        text=f"配置保存位置：{CONFIG_PATH}",
+        style="Hint.TLabel",
+        wraplength=380,
+    )
+    cfg_hint.grid(row=5, column=0, columnspan=3, sticky=tk.W, pady=(6, 0))
+
+    interval_var.trace_add("write", on_param_change)
+    move_var.trace_add("write", on_param_change)
+
+    # —— 跟随参数 ——
+    follow_panel = ttk.LabelFrame(container, text="跟随参数", padding=10)
+    follow_panel.columnconfigure(1, weight=1)
+    ttk.Label(follow_panel, text="跟随灵敏度").grid(row=0, column=0, sticky=tk.W, pady=4)
+
+    def on_sensitivity_change(val: str) -> None:
         state.sensitivity = float(val)
 
     sens_var = tk.DoubleVar(value=0.8)
-    sens_scale = tk.Scale(sens_frame, from_=0.1, to=2.0, resolution=0.1,
-                          orient=tk.HORIZONTAL, variable=sens_var, length=150,
-                          command=on_sensitivity_change)
-    sens_scale.pack(side=tk.LEFT)
+    sens_scale = ttk.Scale(
+        follow_panel,
+        from_=0.1,
+        to=2.0,
+        variable=sens_var,
+        orient=tk.HORIZONTAL,
+        command=on_sensitivity_change,
+    )
+    sens_scale.grid(row=0, column=1, sticky=tk.EW, padx=(8, 0), pady=4)
+    sens_value_label = ttk.Label(follow_panel, text="0.8")
+    sens_value_label.grid(row=0, column=2, padx=(8, 0))
+
+    def _update_sens_label(*_args: object) -> None:
+        sens_value_label.config(text=f"{sens_var.get():.1f}")
+
+    sens_var.trace_add("write", _update_sens_label)
+
+    options_panel = ttk.LabelFrame(container, text="选项", padding=10)
 
     hotkey_var = tk.BooleanVar(value=False)
-    hotkey_check = tk.Checkbutton(root, text="启用快捷键切换模式（F6）", variable=hotkey_var, font=("Microsoft YaHei UI", 9))
-    hotkey_check.pack(pady=(0, 5))
+    ttk.Checkbutton(options_panel, text="启用快捷键切换模式（F6）", variable=hotkey_var).pack(
+        anchor=tk.W, pady=2
+    )
 
     debug_var = tk.BooleanVar(value=False)
-    debug_check = tk.Checkbutton(root, text="显示跟随调试窗口", variable=debug_var, font=("Microsoft YaHei UI", 9))
-    debug_check.pack(pady=(0, 5))
+    ttk.Checkbutton(options_panel, text="显示跟随调试窗口", variable=debug_var).pack(anchor=tk.W, pady=2)
     preview_var = tk.BooleanVar(value=True)
-    preview_check = tk.Checkbutton(root, text="调试窗口显示锁定框预览", variable=preview_var, font=("Microsoft YaHei UI", 9))
-    preview_check.pack(pady=(0, 5))
+    ttk.Checkbutton(options_panel, text="调试窗口显示锁定框预览", variable=preview_var).pack(
+        anchor=tk.W, pady=2
+    )
     game_mode_var = tk.BooleanVar(value=True)
-    game_mode_check = tk.Checkbutton(root, text="游戏兼容模式（自动最小化/禁用预览）", variable=game_mode_var, font=("Microsoft YaHei UI", 9))
-    game_mode_check.pack(pady=(0, 5))
+    ttk.Checkbutton(
+        options_panel, text="游戏兼容模式（自动最小化 / 禁用预览）", variable=game_mode_var
+    ).pack(anchor=tk.W, pady=2)
 
-    def on_hotkey_press(key):
+    footer_hint = ttk.Label(container, text="关闭此窗口将退出程序", style="Hint.TLabel")
+
+    # 初始化方案列表与默认参数
+    _refresh_preset_combo()
+    active = find_preset(config_data, config_data.active_preset_id) or config_data.presets[0]
+    _load_preset_to_ui(active)
+    refresh_mode_ui()
+    options_panel.pack(fill=tk.X, pady=(0, 8))
+    footer_hint.pack(anchor=tk.W)
+
+    def on_hotkey_toggle_mode() -> None:
+        mode_var.set("lock" if mode_var.get() == "recoil" else "recoil")
+        refresh_mode_ui()
+
+    def on_hotkey_press(key: keyboard.Key | keyboard.KeyCode) -> None:
         try:
             if key == keyboard.Key.f6:
                 with state.lock:
                     enabled = state.hotkey_enabled
                 if enabled:
-                    root.after(0, toggle_mode)
+                    root.after(0, on_hotkey_toggle_mode)
         except Exception:
             pass
 
@@ -554,11 +935,6 @@ def main() -> None:
         root.after(60, sync_debug_window)
 
     root.after(60, sync_debug_window)
-
-    tip2 = tk.Label(root, text="按住右键激活，按住左键执行压枪")
-    tip2.pack()
-    tip3 = tk.Label(root, text="关闭此窗口将退出程序", fg="gray")
-    tip3.pack(pady=(5, 0))
 
     def on_click(x: int, y: int, button: mouse.Button, pressed: bool) -> None:
         if button == mouse.Button.right:

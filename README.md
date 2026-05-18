@@ -5,13 +5,16 @@ Windows 实用工具集合，包含五个桌面工具：
 ## 工具列表
 
 ### 1. 压枪宏 (recoil_macro)
-Windows 压枪宏工具，基于 Python 实现。
+Windows 压枪 / 跟随辅助工具，基于 Python 实现。
 
 **功能：**
-- 按住鼠标右键启用压枪开关
-- 开关生效时，按住鼠标左键持续向下移动鼠标
+- 压枪模式：按住右键激活，按住左键按方案下压鼠标
+- 跟随模式：按住右键激活，按住左键跟踪屏幕目标
+- 支持多套压枪方案（间隔、移动距离）保存与切换
 
-**技术栈：** Python + ctypes + pynput + tkinter
+**技术栈：** Python + OpenCV + ctypes + pynput + tkinter
+
+**目录结构：** `main.py`（入口）、`config.py`（方案配置）、`follow_core.py`（跟随算法）
 
 ### 2. 目录字符串查询工具 (search_tool_app)
 目录搜索工具，支持在指定目录中快速查找文件和内容。
