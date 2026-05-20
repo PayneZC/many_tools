@@ -25,8 +25,9 @@ env/
 .DS_Store
 Thumbs.db
 
-# PyInstaller
+# PyInstaller（自动生成；地图工具 spec 需纳入版本库以便复现打包）
 *.spec
+!pubg_map_tool/pubg_map_tool.spec
 
 # 压枪宏运行时生成的用户配置
 recoil_macro/recoil_presets.json
@@ -34,3 +35,17 @@ recoil_macro/build/
 
 # Local pycs (from PyInstaller)
 localpycs/
+
+# PUBG 地图工具本地下载数据（体积较大）
+pubg_map_tool/data/
+# 覆盖层用户配置保存在 data/overlay_settings.json，随 data/ 忽略
+pubg_map_tool/data_test/
+pubg_map_tool/build/
+pubg_map_tool/dist/
+pubg_map_tool/__pycache__/
+pubg_map_tool/build_deps/
+pubg_map_tool/_*.js
+pubg_map_tool/_tmp_*.html
+pubg_map_tool/*.log
+pubg_map_tool/_debug.txt
+pubg_map_tool/launch_out.txt

@@ -12,7 +12,14 @@ import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+from pathlib import Path
+
 import winreg
+
+_SHARED_DIR = Path(__file__).resolve().parent.parent / "shared"
+if str(_SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(_SHARED_DIR))
+from tool_branding import grid_copyright  # noqa: E402
 
 CLASSES_PATH = r"Software\Classes"
 URL_PROTOCOL_VALUE = "URL Protocol"
@@ -295,6 +302,8 @@ class ProtocolManagerApp(tk.Tk):
         ttk.Label(self, textvariable=self.status, relief=tk.SUNKEN, anchor="w").grid(
             row=3, column=0, columnspan=2, sticky="ew"
         )
+        # 状态栏下方低调版权标识
+        grid_copyright(self, row=4, columnspan=2, sticky="e")
 
     def set_status(self, text: str) -> None:
         self.status.set(text)

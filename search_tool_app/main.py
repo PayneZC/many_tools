@@ -13,12 +13,19 @@ from __future__ import annotations
 
 import os
 import queue
+import sys
 import threading
 import time
 import tkinter as tk
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+
+# 共用模块目录 shared/
+_SHARED_DIR = Path(__file__).resolve().parent.parent / "shared"
+if str(_SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(_SHARED_DIR))
+from tool_branding import grid_copyright  # noqa: E402
 
 
 DEFAULT_EXCLUDE_DIRS = {
@@ -133,6 +140,9 @@ class DirectorySearchApp(tk.Tk):
         self.result.configure(yscrollcommand=ysb.set, xscrollcommand=xsb.set)
         ysb.grid(row=8, column=3, sticky="ns")
         xsb.grid(row=9, column=0, columnspan=3, sticky="ew")
+
+        # 右下角低调版权标识
+        grid_copyright(root, row=10, columnspan=3)
 
     def _pick_root(self) -> None:
         d = filedialog.askdirectory(title="选择扫描根目录", initialdir=self.var_root.get() or str(Path.cwd()))

@@ -1,6 +1,7 @@
 # 打包依赖
 pyinstaller>=6.0.0
 pillow
+pillow-avif-plugin>=1.4.0
 pystray
 
 # 压枪宏 recoil_macro 运行依赖
@@ -16,3 +17,8 @@ pynput>=1.7.6
 # 目录查询工具打包（双击 search_tool_app\build_exe.bat）：
 #   python -m PyInstaller --noconfirm search_tool_app\search_tool.spec
 # 输出：dist\目录字符串查询工具.exe
+#
+# PUBG 地图工具打包（双击 pubg_map_tool\build_exe.bat）：
+#   python -m pip install -r requirements.txt
+#   powershell -File pubg_map_tool\build_exe.ps1
+# 输出：dist\PUBG地图工具.exe

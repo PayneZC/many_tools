@@ -19,7 +19,13 @@ import time
 import tkinter as tk
 from dataclasses import dataclass, field
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import messagebox, simpledialog, ttk
+
+_SHARED_DIR = Path(__file__).resolve().parent.parent / "shared"
+if str(_SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(_SHARED_DIR))
+from tool_branding import pack_copyright  # noqa: E402
+
 
 def _app_dir() -> Path:
     """脚本目录；打包后为 exe 所在目录（配置写入同级）。"""
@@ -472,8 +478,9 @@ def main() -> None:
 
     root = tk.Tk()
     root.title("压枪 / 鼠标辅助")
-    root.geometry("440x580")
-    root.minsize(420, 540)
+    # 默认高度按「选项展开 + 底部提示」预留，避免展开后底部被裁切
+    root.geometry("440x620")
+    root.minsize(420, 480)
     _setup_style(root)
 
     container = ttk.Frame(root, padding=12)
@@ -615,9 +622,31 @@ def main() -> None:
         messagebox.showinfo("已保存", f"方案「{name}」已写入配置文件。")
 
     def on_new_preset() -> None:
+        # 弹出对话框让用户自定义方案名称，取消则不创建
+        default_name = f"方案{len(config_data.presets) + 1}"
+        raw_name = simpledialog.askstring(
+            "新建方案",
+            "请输入方案名称：",
+            initialvalue=default_name,
+            parent=root,
+        )
+        if raw_name is None:
+            return
+        name = raw_name.strip()
+        if not name:
+            messagebox.showwarning("名称无效", "方案名称不能为空。", parent=root)
+            return
+        if any(p.name == name for p in config_data.presets):
+            if not messagebox.askyesno(
+                "名称重复",
+                f"已存在名为「{name}」的方案，仍要创建吗？",
+                parent=root,
+            ):
+                return
+
         preset = RecoilPreset(
             new_preset_id(),
-            f"方案{len(config_data.presets) + 1}",
+            name,
             interval_ms=float(interval_var.get()),
             move_pixels=int(move_var.get()),
         )
@@ -721,23 +750,57 @@ def main() -> None:
 
     sens_var.trace_add("write", _update_sens_label)
 
-    options_panel = ttk.LabelFrame(container, text="选项", padding=10)
+    # 可折叠「选项」区（用 Frame 而非空 LabelFrame，避免标题栏占位导致按钮偏下）
+    options_section = ttk.Frame(container)
+    options_collapsed = tk.BooleanVar(value=True)
 
+    def _options_toggle_label() -> str:
+        return f"{'▶' if options_collapsed.get() else '▼'}  选项"
+
+    def _fit_window_to_content() -> None:
+        """按当前布局自适应窗口高度，展开/收起选项后保证底部提示完整可见。"""
+        root.update_idletasks()
+        min_w, min_h = root.minsize()
+        w = max(root.winfo_width(), min_w)
+        h = max(root.winfo_reqheight(), min_h)
+        root.geometry(f"{w}x{h}")
+
+    def _toggle_options_section() -> None:
+        if options_collapsed.get():
+            options_body.pack(fill=tk.X, padx=4, pady=(2, 0))
+            options_collapsed.set(False)
+        else:
+            options_body.pack_forget()
+            options_collapsed.set(True)
+        options_toggle_btn.config(text=_options_toggle_label())
+        _fit_window_to_content()
+
+    options_header = ttk.Frame(options_section)
+    options_header.pack(fill=tk.X, pady=0)
+    options_toggle_btn = ttk.Button(
+        options_header,
+        text=_options_toggle_label(),
+        command=_toggle_options_section,
+        style="Toolbutton",
+    )
+    options_toggle_btn.pack(anchor=tk.W, pady=0)
+
+    options_body = ttk.Frame(options_section)
     hotkey_var = tk.BooleanVar(value=False)
-    ttk.Checkbutton(options_panel, text="启用快捷键切换模式（F6）", variable=hotkey_var).pack(
-        anchor=tk.W, pady=2
+    ttk.Checkbutton(options_body, text="启用快捷键切换模式（F6）", variable=hotkey_var).pack(
+        anchor=tk.W, pady=(0, 2)
     )
 
     debug_var = tk.BooleanVar(value=False)
-    ttk.Checkbutton(options_panel, text="显示跟随调试窗口", variable=debug_var).pack(anchor=tk.W, pady=2)
+    ttk.Checkbutton(options_body, text="显示跟随调试窗口", variable=debug_var).pack(anchor=tk.W, pady=2)
     preview_var = tk.BooleanVar(value=True)
-    ttk.Checkbutton(options_panel, text="调试窗口显示锁定框预览", variable=preview_var).pack(
+    ttk.Checkbutton(options_body, text="调试窗口显示锁定框预览", variable=preview_var).pack(
         anchor=tk.W, pady=2
     )
     game_mode_var = tk.BooleanVar(value=True)
     ttk.Checkbutton(
-        options_panel, text="游戏兼容模式（自动最小化 / 禁用预览）", variable=game_mode_var
-    ).pack(anchor=tk.W, pady=2)
+        options_body, text="游戏兼容模式（自动最小化 / 禁用预览）", variable=game_mode_var
+    ).pack(anchor=tk.W, pady=(2, 0))
 
     footer_hint = ttk.Label(container, text="关闭此窗口将退出程序", style="Hint.TLabel")
 
@@ -746,8 +809,11 @@ def main() -> None:
     active = find_preset(config_data, config_data.active_preset_id) or config_data.presets[0]
     _load_preset_to_ui(active)
     refresh_mode_ui()
-    options_panel.pack(fill=tk.X, pady=(0, 8))
-    footer_hint.pack(anchor=tk.W)
+    options_section.pack(fill=tk.X, pady=(4, 4))
+    footer_hint.pack(anchor=tk.W, pady=(2, 0))
+    # 窗口底部低调版权标识
+    pack_copyright(container, fill=tk.X)
+    _fit_window_to_content()
 
     def on_hotkey_toggle_mode() -> None:
         mode_var.set("lock" if mode_var.get() == "recoil" else "recoil")

@@ -1,11 +1,11 @@
 @echo off
 chcp 65001 >nul
-set "ROOT=%~dp0.."
-set "TOOL_DIR=%ROOT%\recoil_macro"
+set "TOOL_DIR=%~dp0"
+set "ROOT=%TOOL_DIR%.."
 cd /d "%ROOT%"
 
-rem 使用 UTF-8 调用 PowerShell，避免中文参数乱码
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); & '%TOOL_DIR%\build_exe.ps1'"
+rem 调用 build_exe.ps1（自动选用 Miniconda Python + Conda 运行库）
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); & '%TOOL_DIR%build_exe.ps1'"
 if errorlevel 1 (
   echo 打包失败。
   pause

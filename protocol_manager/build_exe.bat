@@ -1,21 +1,15 @@
 @echo off
 chcp 65001 >nul
-set "ROOT=%~dp0.."
-set "TOOL_DIR=%ROOT%\protocol_manager"
+set "TOOL_DIR=%~dp0"
+set "ROOT=%TOOL_DIR%.."
 cd /d "%ROOT%"
 
-echo [1/2] 检查 PyInstaller...
-python -m pip install "pyinstaller>=6.0.0" -q
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); & '%TOOL_DIR%build_exe.ps1'"
 if errorlevel 1 (
-  echo pip 安装失败，请检查 Python 是否在 PATH 中。
+  echo Build failed.
+  pause
   exit /b 1
 )
 
-echo [2/2] 打包单文件 exe...
-python -m PyInstaller --noconfirm --onefile --noconsole --specpath "%TOOL_DIR%" --name "本地协议配置管理器" "%TOOL_DIR%\main.py"
-if errorlevel 1 exit /b 1
-
-echo.
-echo 完成: dist\本地协议配置管理器.exe
-echo spec: protocol_manager\本地协议配置管理器.spec
+pause
 exit /b 0

@@ -26,6 +26,11 @@ from tkinter import messagebox, ttk
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
+_SHARED_DIR = Path(__file__).resolve().parent.parent / "shared"
+if str(_SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(_SHARED_DIR))
+from tool_branding import grid_copyright  # noqa: E402
+
 from PIL import Image
 import pystray
 
@@ -413,6 +418,9 @@ class NetworkAuthManagerApp(tk.Tk):
         sb = ttk.Scrollbar(root, orient=tk.VERTICAL, command=self.log_box.yview)
         sb.grid(row=4, column=2, sticky="ns", pady=(6, 0))
         self.log_box.configure(yscrollcommand=sb.set)
+
+        # 日志区下方低调版权标识
+        grid_copyright(root, row=5, columnspan=2)
 
     def _queue_log(self, text: str) -> None:
         self._queue.put(("log", text))

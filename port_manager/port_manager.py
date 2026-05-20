@@ -1,6 +1,7 @@
 import os
 import sys
 import subprocess
+from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 import threading
@@ -8,6 +9,11 @@ import time
 import re
 import ctypes
 from datetime import datetime
+
+_SHARED_DIR = Path(__file__).resolve().parent.parent / "shared"
+if str(_SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(_SHARED_DIR))
+from tool_branding import grid_copyright  # noqa: E402
 
 
 def is_admin():
@@ -140,7 +146,10 @@ class PortManagerApp:
         
         self.log("欢迎使用端口管理工具", "info")
         self.log("请点击「刷新/查询」查看端口占用情况", "info")
-        
+
+        # 窗口底部低调版权标识
+        grid_copyright(main_frame, row=7, columnspan=4)
+
     def log(self, message, tag="info"):
         def update():
             timestamp = datetime.now().strftime("%H:%M:%S")

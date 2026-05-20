@@ -2,16 +2,41 @@
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $ToolDir = Join-Path $Root "network_auth_manager"
+. (Join-Path $Root "shared\build_conda_common.ps1")
 Set-Location $Root
+$SharedDir = Join-Path $Root "shared"
 
-Write-Host "[1/2] Check PyInstaller..."
-python -m pip install "pyinstaller>=6.0.0" -q
-if ($LASTEXITCODE -ne 0) { throw "pip install failed. Please verify Python is in PATH." }
+$Py = Get-BuildPythonExe
+if (-not $Py) { throw "No usable Python found." }
+Write-Host "Using Python: $Py"
 
-Write-Host "[2/2] Build onefile exe..."
-python -m PyInstaller --noconfirm --onefile --noconsole --specpath "$ToolDir" --name "网络认证自动保活工具" --icon "$ToolDir/app_icon.ico" --add-data "$ToolDir/app_icon.ico;." --add-data "$ToolDir/app_icon.png;." "$ToolDir/main.py"
+& $Py -m pip install -r (Join-Path $Root "requirements.txt") -q
+& $Py -m pip install "pyinstaller>=6.0.0" -q
+if ($LASTEXITCODE -ne 0) { throw "pip install failed." }
+
+$tkArgs = Get-TkinterPyInstallerArgs $Py
+$distDir = Join-Path $Root "dist"
+$workDir = Join-Path $ToolDir "build"
+$iconIco = Join-Path $ToolDir "app_icon.ico"
+$iconPng = Join-Path $ToolDir "app_icon.png"
+
+& $Py -m PyInstaller --noconfirm --onefile --noconsole `
+    --specpath $ToolDir `
+    --distpath $distDir `
+    --workpath $workDir `
+    --paths $SharedDir `
+    --hidden-import tool_branding `
+    --hidden-import pystray `
+    --hidden-import PIL `
+    --hidden-import PIL._tkinter_finder `
+    --collect-all pystray `
+    --name NetworkAuthManager `
+    --icon $iconIco `
+    --add-data "${iconIco};." `
+    --add-data "${iconPng};." `
+    @tkArgs `
+    (Join-Path $ToolDir "main.py")
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed." }
 
-Write-Host ""
-Write-Host "Done: dist output generated"
-Write-Host "Spec path: network_auth_manager\*.spec"
+Rename-DistExe $Py $Root "NetworkAuthManager"
+Write-Host "Build finished."
