@@ -11,6 +11,7 @@ DISPLAY_NAMES: dict[str, str] = {
     "ProtocolManager": "本地协议配置管理器",
     "PortManager": "端口管理工具",
     "NetworkAuthManager": "网络认证自动保活工具",
+    "Love520Box": "520浪漫盒",
 }
 
 

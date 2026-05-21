@@ -16,7 +16,15 @@ from PIL import Image, ImageTk
 
 from app_icon import apply_window_icon
 from overlay_hotkey import InlineHotkeyCapture, OverlayHotkeyManager
-from overlay_settings import DEFAULT_HOTKEY_TOGGLE, load_settings, save_settings
+from overlay_settings import (
+    DEFAULT_HOTKEY_TOGGLE,
+    OverlayGlobalSettings,
+    OverlayMapSettings,
+    load_global_settings,
+    load_map_settings,
+    save_global_settings,
+    save_map_settings,
+)
 from preview_cache import load_preview_rgba
 
 _SHARED_DIR = Path(__file__).resolve().parent.parent / "shared"
@@ -98,20 +106,21 @@ class MapOverlayController:
         self._last_map_id: str | None = None
         self._last_title = ""
 
-        # 从磁盘加载配置
-        self._settings = load_settings(data_dir)
-        self._opacity = self._settings.opacity / 100.0
-        self._display_scale = self._settings.scale / 100.0
+        # 全局快捷键 + 当前地图显示参数（切换地图时分别加载/保存）
+        self._global = load_global_settings(data_dir)
+        self._map_settings = OverlayMapSettings()
+        self._opacity = self._map_settings.opacity / 100.0
+        self._display_scale = self._map_settings.scale / 100.0
 
-        self.var_opacity = tk.IntVar(value=self._settings.opacity)
-        self.var_scale = tk.IntVar(value=self._settings.scale)
-        self.var_topmost = tk.BooleanVar(value=self._settings.topmost)
+        self.var_opacity = tk.IntVar(value=self._map_settings.opacity)
+        self.var_scale = tk.IntVar(value=self._map_settings.scale)
+        self.var_topmost = tk.BooleanVar(value=self._map_settings.topmost)
         self.var_title = tk.StringVar(value="未加载地图")
-        self.var_hotkey_enabled = tk.BooleanVar(value=self._settings.hotkey_enabled)
-        self.var_hotkey = tk.StringVar(value=self._settings.hotkey_toggle)
+        self.var_hotkey_enabled = tk.BooleanVar(value=self._global.hotkey_enabled)
+        self.var_hotkey = tk.StringVar(value=self._global.hotkey_toggle)
         self._ui_sync = False  # 防止滑轨与输入框联动时递归
 
-        self._hotkey_mgr = OverlayHotkeyManager(master, self.toggle_visibility)
+        self._hotkey_mgr = OverlayHotkeyManager(master, self.toggle_visibility, slot="map_overlay")
         self._reload_hotkey()
 
     def is_open(self) -> bool:
@@ -127,8 +136,8 @@ class MapOverlayController:
     def _reload_hotkey(self) -> None:
         enabled = bool(self.var_hotkey_enabled.get())
         spec = self.var_hotkey.get().strip() or DEFAULT_HOTKEY_TOGGLE
-        self._settings.hotkey_enabled = enabled
-        self._settings.hotkey_toggle = spec
+        self._global.hotkey_enabled = enabled
+        self._global.hotkey_toggle = spec
         self._hotkey_mgr.apply(enabled, spec)
 
     def toggle_visibility(self) -> None:
@@ -171,18 +180,24 @@ class MapOverlayController:
     def show(self, image_path: Path, title: str, *, map_id: str) -> None:
         if not image_path.is_file():
             return
+        prev_map_id = self._map_id
+        # 切换到另一张地图前，先保存上一张地图的显示配置
+        if prev_map_id and prev_map_id != map_id:
+            self._persist_map_settings()
+            self._pil_image = None
+
         self._map_path = image_path
         self._map_id = map_id
         self._last_map_path = image_path
         self._last_map_id = map_id
         self._last_title = title
         self.var_title.set(title)
+        self._map_settings = load_map_settings(self._data_dir, map_id)
 
         if not self.is_open():
             self._build_windows()
-        else:
-            # 再次打开时同步已保存的配置到界面
-            self._sync_vars_from_settings()
+        # 同步该地图已保存的配置到界面
+        self._sync_vars_from_settings()
         self._load_image_async()
         self._hidden = False
         for w in (self._map_win, self._drag_win, self._ctrl_win):
@@ -192,7 +207,7 @@ class MapOverlayController:
             self._on_visibility_changed(True)
 
     def close(self) -> None:
-        self._persist_settings()
+        self._persist_all_settings()
         for win in (self._map_win, self._drag_win, self._ctrl_win):
             if win and win.winfo_exists():
                 win.destroy()
@@ -361,7 +376,7 @@ class MapOverlayController:
 
         ttk.Label(
             ctrl,
-            text="地图区域穿透鼠标 · 拖动顶部蓝条移动位置\n所有参数修改后自动保存",
+            text="地图区域穿透鼠标 · 拖动顶部蓝条移动位置\n显示参数按地图分别保存 · 快捷键全局共用",
             style="Muted.TLabel",
             justify=tk.LEFT,
         ).pack(anchor="w", padx=12, pady=(4, 4))
@@ -476,30 +491,31 @@ class MapOverlayController:
         slider.pack(fill=tk.X, pady=(6, 0))
 
     def _on_hotkey_enabled_change(self) -> None:
-        self._settings.hotkey_enabled = self.var_hotkey_enabled.get()
+        self._global.hotkey_enabled = self.var_hotkey_enabled.get()
         self._reload_hotkey()
         self._schedule_save()
 
     def _on_hotkey_saved(self) -> None:
-        self._settings.hotkey_toggle = self.var_hotkey.get().strip() or DEFAULT_HOTKEY_TOGGLE
+        self._global.hotkey_toggle = self.var_hotkey.get().strip() or DEFAULT_HOTKEY_TOGGLE
         if hasattr(self, "_hotkey_capture"):
             self._hotkey_capture.refresh()
         self._schedule_save()
 
     def _sync_vars_from_settings(self) -> None:
         self._ui_sync = True
-        self.var_opacity.set(self._settings.opacity)
-        self.var_scale.set(self._settings.scale)
-        self.var_topmost.set(self._settings.topmost)
-        self.var_hotkey_enabled.set(self._settings.hotkey_enabled)
-        self.var_hotkey.set(self._settings.hotkey_toggle)
+        self.var_opacity.set(self._map_settings.opacity)
+        self.var_scale.set(self._map_settings.scale)
+        self.var_topmost.set(self._map_settings.topmost)
+        self.var_hotkey_enabled.set(self._global.hotkey_enabled)
+        self.var_hotkey.set(self._global.hotkey_toggle)
         self._ui_sync = False
         if hasattr(self, "_hotkey_capture"):
             self._hotkey_capture.refresh()
         self._reload_hotkey()
-        self._opacity = self._settings.opacity / 100.0
-        self._display_scale = self._settings.scale / 100.0
+        self._opacity = self._map_settings.opacity / 100.0
+        self._display_scale = self._map_settings.scale / 100.0
         self._apply_opacity()
+        self._apply_topmost()
         if self._pil_image:
             self._render_image()
 
@@ -507,18 +523,18 @@ class MapOverlayController:
         pct = max(self.OPACITY_MIN, min(self.OPACITY_MAX, int(self.var_opacity.get())))
         self.var_opacity.set(pct)
         self._opacity = pct / 100.0
-        self._settings.opacity = pct
+        self._map_settings.opacity = pct
         self._apply_opacity()
 
     def _apply_scale_from_var(self) -> None:
         pct = max(self.SCALE_MIN, min(self.SCALE_MAX, int(self.var_scale.get())))
         self.var_scale.set(pct)
         self._display_scale = pct / 100.0
-        self._settings.scale = pct
+        self._map_settings.scale = pct
         self._render_image()
 
     def _on_topmost_change(self) -> None:
-        self._settings.topmost = self.var_topmost.get()
+        self._map_settings.topmost = self.var_topmost.get()
         self._apply_topmost()
         self._schedule_save()
 
@@ -526,21 +542,46 @@ class MapOverlayController:
         if self._save_job and self._ctrl_win:
             self._ctrl_win.after_cancel(self._save_job)
         if self._ctrl_win:
-            self._save_job = self._ctrl_win.after(400, self._persist_settings)
+            self._save_job = self._ctrl_win.after(400, self._persist_all_settings)
 
-    def _persist_settings(self) -> None:
-        self._save_job = None
-        self._settings.opacity = max(self.OPACITY_MIN, min(self.OPACITY_MAX, int(self.var_opacity.get())))
-        self._settings.scale = max(self.SCALE_MIN, min(self.SCALE_MAX, int(self.var_scale.get())))
-        self._settings.topmost = self.var_topmost.get()
-        self._settings.hotkey_enabled = self.var_hotkey_enabled.get()
-        self._settings.hotkey_toggle = self.var_hotkey.get().strip() or DEFAULT_HOTKEY_TOGGLE
-        self._settings.pos_x, self._settings.pos_y = self._pos
+    def _collect_map_settings(self) -> OverlayMapSettings:
+        self._map_settings.opacity = max(
+            self.OPACITY_MIN, min(self.OPACITY_MAX, int(self.var_opacity.get()))
+        )
+        self._map_settings.scale = max(self.SCALE_MIN, min(self.SCALE_MAX, int(self.var_scale.get())))
+        self._map_settings.topmost = self.var_topmost.get()
+        self._map_settings.pos_x, self._map_settings.pos_y = self._pos
+        return self._map_settings.clamp()
+
+    def _collect_global_settings(self) -> OverlayGlobalSettings:
+        self._global.hotkey_enabled = self.var_hotkey_enabled.get()
+        self._global.hotkey_toggle = self.var_hotkey.get().strip() or DEFAULT_HOTKEY_TOGGLE
+        return self._global.clamp()
+
+    def _persist_map_settings(self) -> None:
+        """仅保存当前地图的显示参数。"""
+        if not self._map_id:
+            return
+        self._collect_map_settings()
         try:
-            save_settings(self._data_dir, self._settings)
+            save_map_settings(self._data_dir, self._map_id, self._map_settings)
         except OSError as exc:
             if self._ctrl_win and self._ctrl_win.winfo_exists():
                 messagebox.showerror("保存失败", str(exc), parent=self._ctrl_win)
+
+    def _persist_global_settings(self) -> None:
+        """保存全局快捷键配置。"""
+        self._collect_global_settings()
+        try:
+            save_global_settings(self._data_dir, self._global)
+        except OSError as exc:
+            if self._ctrl_win and self._ctrl_win.winfo_exists():
+                messagebox.showerror("保存失败", str(exc), parent=self._ctrl_win)
+
+    def _persist_all_settings(self) -> None:
+        self._save_job = None
+        self._persist_map_settings()
+        self._persist_global_settings()
 
     def _enable_map_passthrough(self) -> None:
         if self._map_win:
@@ -575,8 +616,8 @@ class MapOverlayController:
                 return
             self._pil_image = result
             self._render_image()
-            if self._settings.pos_x >= 0 and self._settings.pos_y >= 0:
-                self._place_at(self._settings.pos_x, self._settings.pos_y)
+            if self._map_settings.pos_x >= 0 and self._map_settings.pos_y >= 0:
+                self._place_at(self._map_settings.pos_x, self._map_settings.pos_y)
             else:
                 self._center_overlay()
 

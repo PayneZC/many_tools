@@ -1,6 +1,6 @@
 # many_tools
 
-Windows 实用工具集合，包含六个桌面小工具。界面右下角统一显示低调版权标识「© 大鹏Payne」。
+Windows 实用工具集合，包含多款桌面小工具。界面右下角统一显示低调版权标识「© 大鹏Payne」。
 
 ## 项目结构
 
@@ -14,6 +14,8 @@ many_tools/
 ├── network_auth_manager/   # 网络认证自动保活
 ├── port_manager/           # 端口占用查询与释放
 ├── pubg_map_tool/          # PUBG 地图同步与游戏覆盖层
+├── fusion_tool/            # PUBG 辅助工具（地图 + 压枪一体化）
+├── idle_tools/             # 休闲 / 节日小工具（如情人节浪漫盒）
 └── requirements.txt
 ```
 
@@ -98,7 +100,8 @@ Windows 自定义 URL 协议（`HKCU\Software\Classes`）管理。
 - 一键从 pubg.im 下载全部地图（8x8 详细版）
 - 地图列表、缩放预览、PNG 导出
 - 桌面置顶半透明覆盖层，可调透明度与比例，地图区域鼠标穿透
-- 全局快捷键显示/隐藏覆盖层（默认 `右 Ctrl+M`，可在控制面板自定义）
+- 全局快捷键显示/隐藏覆盖层（默认 `右 Ctrl+M`，可在控制面板自定义）；双击左侧地图名可快速打开覆盖层
+- 覆盖层透明度、位置、比例按地图分别记忆
 
 **技术栈：** Python + tkinter + Pillow + urllib + pynput
 
@@ -116,6 +119,36 @@ Windows 自定义 URL 协议（`HKCU\Software\Classes`）管理。
 
 **本地数据（`data/`，已 gitignore）：** `maps/`、`previews/`、`thumbs/`、`manifest.json`、`overlay_settings.json`
 
+### 7. 520 浪漫空间 (idle_tools / valentine_love)
+
+**5·20** 主题互动页：Canvas 粒子 / 烟花、520 动效、玻璃拟态 UI、情书打字机。
+
+**技术栈：** HTML + CSS + JavaScript + 轻量启动器（Edge/Chrome 应用模式）
+
+**运行：** `dist\520浪漫盒.exe`（单文件，推荐）或 `idle_tools\valentine_love\520浪漫盒.bat`（开发预览）
+
+**打包：** 双击 `idle_tools\valentine_love\build_exe.bat`
+
+详见 [idle_tools/README.md](idle_tools/README.md)。
+
+### 8. PUBG 辅助工具 (fusion_tool)
+
+在同一窗口整合 **PUBG 地图** 与 **压枪鼠标辅助**（复用 `pubg_map_tool` 地图模块）。
+
+**功能：**
+
+- 地图：列表、更新、预览、导出、游戏覆盖层（覆盖层参数按地图分别保存）
+- 压枪：方案管理、间隔与下移距离、鼠标辅助总开关、全局快捷键切换
+- 系统托盘、打赏收款码展示
+
+**技术栈：** Python + tkinter + Pillow + pynput + pystray + OpenCV（压枪移动）
+
+**运行：** `python fusion_tool/main.py`
+
+**打包：** 双击 `fusion_tool\build_exe.bat` → `dist\PUBG辅助工具.exe`
+
+详见 [fusion_tool/README.md](fusion_tool/README.md)。
+
 ## 共用目录 `shared/`
 
 | 文件 | 用途 |
@@ -124,6 +157,7 @@ Windows 自定义 URL 协议（`HKCU\Software\Classes`）管理。
 | `build_conda_common.ps1` | PyInstaller：Miniconda 检测、Conda DLL、Tcl/Tk 数据、`--collect-all tkinter` |
 | `rthook_tkinter_runtime.py` | 打包 exe 运行时 DLL / `TCL_LIBRARY` / `TK_LIBRARY` |
 | `finalize_dist_rename.py` | 将 `dist` 下 ASCII 构建名 exe 重命名为中文文件名 |
+| `wei.png` / `zhi.jpg` | 融合工具打赏窗口微信/支付宝收款码（打包时一并打入 exe） |
 
 详见 [shared/README.md](shared/README.md)。各工具源码通过将 `shared/` 加入 `sys.path` 导入 `tool_branding`；`build_exe.ps1` 通过 dot-source 引用 `build_conda_common.ps1`。
 
@@ -150,6 +184,7 @@ pip install -r requirements.txt
 ```bash
 python search_tool_app/main.py
 python pubg_map_tool/main.py
+python fusion_tool/main.py
 ```
 
 地图工具首次使用可在界面中「更新全部地图」；`data/` 目录会自动创建。
@@ -177,6 +212,7 @@ python pubg_map_tool/main.py
 .\network_auth_manager\build_exe.ps1
 .\recoil_macro\build_exe.ps1
 .\pubg_map_tool\build_exe.bat    # 内含图标生成、PyInstaller、冒烟测试
+.\fusion_tool\build_exe.ps1
 ```
 
 ### 打包产物一览
@@ -189,6 +225,8 @@ python pubg_map_tool/main.py
 | 网络认证 | `dist\网络认证自动保活工具.exe` |
 | 端口管理 | `dist\端口管理工具.exe` |
 | PUBG 地图 | `dist\PUBG地图工具.exe` |
+| 520 浪漫空间 | `dist\520浪漫盒.exe` |
+| PUBG 辅助工具 | `dist\PUBG辅助工具.exe` |
 
 打包过程中会在各工具目录生成 `*.spec` 与 `build/` 缓存（已 gitignore），可重复执行脚本覆盖构建。
 

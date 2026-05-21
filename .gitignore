@@ -49,3 +49,14 @@ pubg_map_tool/_tmp_*.html
 pubg_map_tool/*.log
 pubg_map_tool/_debug.txt
 pubg_map_tool/launch_out.txt
+
+# PUBG 辅助工具（fusion_tool）本地下载数据与运行时配置
+fusion_tool/data/
+fusion_tool/build/
+fusion_tool/__pycache__/
+
+# PUBG 辅助工具（fusion_tool）本地下载数据与构建缓存
+fusion_tool/data/
+fusion_tool/build/
+fusion_tool/__pycache__/
+fusion_tool/*.spec

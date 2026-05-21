@@ -503,6 +503,8 @@ class PubgMapApp(tk.Tk):
         self.tree.column("updated", width=120, anchor=tk.CENTER)
         self.tree.pack(fill=tk.BOTH, expand=True)
         self.tree.bind("<<TreeviewSelect>>", self._on_select_map)
+        # 双击「地图」列名称直接打开游戏覆盖层
+        self.tree.bind("<Double-1>", self._on_tree_double_click)
 
         # 左侧：地图数据操作（数据源相关按钮集中）
         data_ops = ttk.LabelFrame(left, text="地图数据 (pubg.im)", padding=(8, 6))
@@ -530,7 +532,7 @@ class PubgMapApp(tk.Tk):
         ttk.Button(view_ops, text="游戏覆盖层", command=self._open_overlay).pack(side=tk.LEFT, padx=(0, 8))
         ttk.Label(
             view_ops,
-            text="滚轮缩放 · 左键拖拽 · 默认 右 Ctrl+M 切换覆盖层",
+            text="滚轮缩放 · 左键拖拽 · 双击地图名打开覆盖层 · 右 Ctrl+M 切换",
             foreground=COLOR_MUTED,
         ).pack(side=tk.LEFT)
 
@@ -574,7 +576,10 @@ class PubgMapApp(tk.Tk):
         sel = self.tree.selection()
         if not sel:
             return
-        map_id = sel[0]
+        self._load_map_preview(sel[0])
+
+    def _load_map_preview(self, map_id: str) -> None:
+        """选中地图后刷新右侧预览。"""
         self._selected_id = map_id
         path = STORE.image_path(map_id)
         self.canvas.set_image(path if path.is_file() else None, map_id=map_id)
@@ -583,6 +588,20 @@ class PubgMapApp(tk.Tk):
             self._set_status(f"已加载: {entry.display_name}")
         elif entry:
             self._set_status(f"{entry.display_name} 尚未下载")
+
+    def _on_tree_double_click(self, event: tk.Event) -> None:
+        """双击左侧「地图」列：选中并打开游戏覆盖层。"""
+        if self.tree.identify_region(event.x, event.y) != "cell":
+            return
+        if self.tree.identify_column(event.x) != "#1":
+            return
+        row_id = self.tree.identify_row(event.y)
+        if not row_id:
+            return
+        self.tree.selection_set(row_id)
+        self.tree.focus(row_id)
+        self._load_map_preview(row_id)
+        self._open_overlay()
 
     def _get_selected_entry(self) -> MapEntry | None:
         if not self._selected_id:

@@ -18,6 +18,17 @@ pynput>=1.7.6
 #   python -m PyInstaller --noconfirm search_tool_app\search_tool.spec
 # 输出：dist\目录字符串查询工具.exe
 #
+# 520 浪漫空间打包（双击 idle_tools\valentine_love\build_exe.bat）：
+#   pip install pyinstaller
+#   输出：dist\520浪漫盒.exe（需本机 Edge/Chrome）
+# PUBG 辅助工具打包（双击 fusion_tool\build_exe.bat）：
+#   python -m pip install -r requirements.txt
+#   powershell -File fusion_tool\build_exe.ps1
+#   输出：dist\PUBG辅助工具.exe
+# PUBG 辅助工具打包（双击 fusion_tool\build_exe.bat）：
+#   python -m pip install -r requirements.txt
+#   powershell -File fusion_tool\build_exe.ps1
+#   输出：dist\PUBG辅助工具.exe
 # PUBG 地图工具打包（双击 pubg_map_tool\build_exe.bat）：
 #   python -m pip install -r requirements.txt
 #   powershell -File pubg_map_tool\build_exe.ps1

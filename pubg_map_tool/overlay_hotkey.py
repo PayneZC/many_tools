@@ -177,48 +177,101 @@ def _format_combo(mods: set[str], main: str | None = None) -> str:
     return "+".join(parts)
 
 
-class OverlayHotkeyManager:
-    """全局热键监听，在 Tk 主线程触发回调。"""
+class GlobalHotkeysHub:
+    """
+    同一主窗口合并多组全局热键。
+    Windows 上多个 GlobalHotKeys 会互相抢占，导致后注册的快捷键失效。
+    """
 
-    def __init__(self, master, on_toggle: Callable[[], None]) -> None:
+    _instances: dict[int, GlobalHotkeysHub] = {}
+
+    @classmethod
+    def for_master(cls, master: tk.Misc) -> GlobalHotkeysHub:
+        key = id(master)
+        hub = cls._instances.get(key)
+        if hub is None:
+            hub = cls(master)
+            cls._instances[key] = hub
+        return hub
+
+    def __init__(self, master: tk.Misc) -> None:
         self._master = master
-        self._on_toggle = on_toggle
+        self._slots: dict[str, tuple[bool, str, Callable[[], None]]] = {}
         self._handle = None
 
-    def apply(self, enabled: bool, hotkey: str) -> bool:
-        """应用设置；返回是否成功注册。"""
-        self.stop()
-        if not enabled:
-            return True
-        spec = parse_hotkey(hotkey)
-        if not spec:
-            return False
-        fmt = spec.to_pynput()
-        if not fmt:
-            return False
-        try:
-            from pynput import keyboard
+    def apply_slot(self, slot: str, enabled: bool, hotkey: str, callback: Callable[[], None]) -> bool:
+        """注册或更新一个热键槽位，并重建合并后的监听。"""
+        self._slots[slot] = (enabled, hotkey, callback)
+        return self._restart()
 
-            self._handle = keyboard.GlobalHotKeys({fmt: self._fire})
-            self._handle.start()
-            return True
-        except Exception:
-            self._handle = None
-            return False
+    def remove_slot(self, slot: str) -> None:
+        """移除槽位（录入新快捷键前临时停用该组）。"""
+        self._slots.pop(slot, None)
+        self._restart()
 
-    def _fire(self) -> None:
-        try:
-            self._master.after(0, self._on_toggle)
-        except Exception:
-            pass
-
-    def stop(self) -> None:
+    def _restart(self) -> bool:
         if self._handle is not None:
             try:
                 self._handle.stop()
             except Exception:
                 pass
             self._handle = None
+
+        mapping: dict[str, Callable[[], None]] = {}
+        for _slot, (enabled, hotkey, callback) in self._slots.items():
+            if not enabled:
+                continue
+            spec = parse_hotkey(hotkey)
+            if not spec:
+                continue
+            fmt = spec.to_pynput()
+            if not fmt:
+                continue
+            if fmt in mapping:
+                return False
+
+            def _fire(cb: Callable[[], None] = callback) -> None:
+                try:
+                    self._master.after(0, cb)
+                except Exception:
+                    pass
+
+            mapping[fmt] = _fire
+
+        if not mapping:
+            return True
+        try:
+            from pynput import keyboard
+
+            self._handle = keyboard.GlobalHotKeys(mapping)
+            self._handle.start()
+            return True
+        except Exception:
+            self._handle = None
+            return False
+
+
+class OverlayHotkeyManager:
+    """全局热键监听，在 Tk 主线程触发回调。"""
+
+    def __init__(
+        self,
+        master: tk.Misc,
+        on_toggle: Callable[[], None],
+        *,
+        slot: str | None = None,
+    ) -> None:
+        self._master = master
+        self._on_toggle = on_toggle
+        self._slot = slot or f"hotkey_{id(self)}"
+        self._hub = GlobalHotkeysHub.for_master(master)
+
+    def apply(self, enabled: bool, hotkey: str) -> bool:
+        """应用设置；返回是否成功注册。"""
+        return self._hub.apply_slot(self._slot, enabled, hotkey, self._on_toggle)
+
+    def stop(self) -> None:
+        self._hub.remove_slot(self._slot)
 
 
 class InlineHotkeyCapture(tk.Frame):
@@ -240,6 +293,7 @@ class InlineHotkeyCapture(tk.Frame):
         on_changed: Callable[[], None] | None = None,
         on_capture_start: Callable[[], None] | None = None,
         on_capture_end: Callable[[], None] | None = None,
+        compact: bool = False,
     ) -> None:
         super().__init__(master, bg=bg)
         self._var = var
@@ -251,23 +305,29 @@ class InlineHotkeyCapture(tk.Frame):
         self._mods: set[str] = set()
         self._listener = None
         self._esc_bind_id: str | None = None
+        # 注释：紧凑模式用于与总开关等同行的快捷键录入。
+        padx, pady = (6, 3) if compact else (10, 8)
+        font = ("Consolas", 9) if compact else ("Consolas", 11)
 
         self._label = tk.Label(
             self,
             text=self._display_text(),
             bg=panel,
             fg=fg,
-            font=("Consolas", 11),
+            font=font,
             cursor="hand2",
-            padx=10,
-            pady=8,
+            padx=padx,
+            pady=pady,
             relief=tk.FLAT,
             bd=0,
             highlightthickness=1,
             highlightbackground=muted,
             highlightcolor=accent,
         )
-        self._label.pack(fill=tk.BOTH, expand=True)
+        if compact:
+            self._label.pack(side=tk.LEFT)
+        else:
+            self._label.pack(fill=tk.BOTH, expand=True)
         self._label.bind("<Button-1>", lambda _e: self._begin_capture())
         self.bind("<Button-1>", lambda _e: self._begin_capture())
 

@@ -1,0 +1,570 @@
+/* 520 浪漫空间 — 主样式 */
+:root {
+  --bg-deep: #0c0618;
+  --bg-mid: #1a0b2e;
+  --accent: #ff4d8d;
+  --accent-2: #ff8fab;
+  --gold: #ffd166;
+  --cyan: #7df9ff;
+  --glass: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --text: #fff5fb;
+  --text-dim: rgba(255, 245, 251, 0.65);
+  --font-display: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+  --font-serif: "KaiTi", "STKaiti", "Georgia", serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-display);
+  color: var(--text);
+  background: var(--bg-deep);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* 粒子画布垫底 */
+#fx-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* 星空 */
+.stars {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 10% 20%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1px 1px at 80% 40%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 50% 70%, rgba(255, 209, 102, 0.6), transparent),
+    radial-gradient(1px 1px at 30% 90%, rgba(255, 143, 171, 0.5), transparent);
+  background-size: 200% 200%;
+  animation: stars-shift 60s linear infinite;
+  opacity: 0.6;
+}
+
+@keyframes stars-shift {
+  to {
+    background-position: 200% 200%;
+  }
+}
+
+.star-dot {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+  animation: star-twinkle 3s ease-in-out infinite;
+}
+
+@keyframes star-twinkle {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.8);
+  }
+}
+
+/* 极光背景 */
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.45;
+  animation: orb-drift 18s ease-in-out infinite;
+}
+
+.orb-a {
+  width: 55vmax;
+  height: 55vmax;
+  background: radial-gradient(circle, #ff2d6f 0%, transparent 70%);
+  top: -20%;
+  left: -15%;
+}
+
+.orb-b {
+  width: 45vmax;
+  height: 45vmax;
+  background: radial-gradient(circle, #7b2ff7 0%, transparent 70%);
+  bottom: -25%;
+  right: -10%;
+  animation-delay: -6s;
+}
+
+.orb-c {
+  width: 35vmax;
+  height: 35vmax;
+  background: radial-gradient(circle, #ffd166 0%, transparent 70%);
+  top: 40%;
+  left: 35%;
+  opacity: 0.25;
+  animation-delay: -12s;
+}
+
+@keyframes orb-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(4%, 6%) scale(1.08);
+  }
+}
+
+/* 场景切换 */
+.scene {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(16px, 4vw, 48px);
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(1.04);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0.7s;
+  pointer-events: none;
+}
+
+.scene-active {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+/* ---------- 开场 520 ---------- */
+.intro-badge {
+  font-size: clamp(0.75rem, 2vw, 0.95rem);
+  letter-spacing: 0.35em;
+  color: var(--gold);
+  margin-bottom: 1rem;
+  animation: fade-up 1s ease 0.2s both;
+}
+
+.hero-520 {
+  display: flex;
+  gap: clamp(8px, 2vw, 24px);
+  font-size: clamp(5rem, 22vw, 11rem);
+  font-weight: 900;
+  line-height: 1;
+  position: relative;
+  animation: fade-up 1s ease 0.35s both;
+}
+
+.hero-520::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: inherit;
+  justify-content: center;
+  font: inherit;
+  background: linear-gradient(120deg, var(--accent), var(--gold), var(--cyan));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: blur(28px);
+  opacity: 0.55;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.digit {
+  display: inline-block;
+  background: linear-gradient(165deg, #fff 0%, var(--accent-2) 45%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 24px rgba(255, 77, 141, 0.8));
+  animation:
+    digit-pop 2.4s ease-in-out infinite,
+    digit-glow 3s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.15s), calc(var(--i) * 0.2s);
+}
+
+@keyframes digit-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 20px rgba(255, 77, 141, 0.6));
+  }
+  50% {
+    filter: drop-shadow(0 0 48px rgba(255, 209, 102, 0.9));
+  }
+}
+
+@keyframes digit-pop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.03);
+  }
+}
+
+.hero-sub {
+  margin-top: 1.2rem;
+  font-size: clamp(1.1rem, 3.5vw, 1.6rem);
+  font-weight: 300;
+  letter-spacing: 0.12em;
+  color: var(--text);
+  animation: fade-up 1s ease 0.5s both;
+}
+
+.hero-date {
+  margin-top: 0.6rem;
+  font-size: clamp(0.85rem, 2.5vw, 1rem);
+  color: var(--text-dim);
+  animation: fade-up 1s ease 0.65s both;
+}
+
+/* 章节进度点 */
+.act-dots {
+  position: fixed;
+  top: clamp(12px, 2vh, 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: flex;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.act-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transition: transform 0.35s ease, background 0.35s ease, box-shadow 0.35s ease;
+}
+
+.act-dot-active {
+  background: var(--gold);
+  box-shadow: 0 0 12px var(--gold);
+  transform: scale(1.35);
+}
+
+.act-dot-done {
+  background: var(--accent);
+}
+
+.skip-hint {
+  position: fixed;
+  bottom: clamp(20px, 4vh, 36px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  animation: pulse-hint 2.5s ease-in-out infinite;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+.skip-hint-hidden {
+  opacity: 0;
+}
+
+@keyframes pulse-hint {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- 第二幕：金句 ---------- */
+.vow-stage {
+  width: min(900px, 92vw);
+  min-height: 40vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.vow-line {
+  font-size: clamp(1.6rem, 5.5vw, 3rem);
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0.06em;
+  background: linear-gradient(120deg, #fff 10%, var(--accent-2) 50%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  opacity: 0;
+  transform: translateY(32px) scale(0.96);
+  filter: blur(6px);
+  transition:
+    opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.85s ease;
+}
+
+.vow-line.vow-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.act-caption {
+  position: fixed;
+  bottom: clamp(56px, 10vh, 88px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(0.95rem, 2.5vw, 1.15rem);
+  color: var(--gold);
+  letter-spacing: 0.2em;
+  z-index: 12;
+  text-shadow: 0 0 20px rgba(255, 209, 102, 0.4);
+  animation: fade-up 1s ease both;
+}
+
+#act-heart {
+  justify-content: center;
+}
+
+.center-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+}
+
+.ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 77, 141, 0.25);
+  animation: ring-spin 24s linear infinite;
+}
+
+.ring-outer {
+  width: min(72vmin, 520px);
+  height: min(72vmin, 520px);
+}
+
+.ring-inner {
+  width: min(52vmin, 380px);
+  height: min(52vmin, 380px);
+  animation-direction: reverse;
+  animation-duration: 16s;
+  border-color: rgba(255, 209, 102, 0.2);
+}
+
+@keyframes ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.love-core {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  animation: core-beat 1.8s ease-in-out infinite;
+}
+
+.core-num {
+  display: block;
+  font-size: clamp(3.5rem, 14vw, 7rem);
+  font-weight: 900;
+  background: linear-gradient(180deg, #fff, var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 30px rgba(255, 77, 141, 0.6));
+}
+
+.core-text {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: clamp(1.2rem, 4vw, 2rem);
+  letter-spacing: 0.35em;
+  color: var(--gold);
+  text-indent: 0.35em;
+}
+
+@keyframes core-beat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+.float-words {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  list-style: none;
+}
+
+.float-words li {
+  position: absolute;
+  font-size: clamp(0.75rem, 2vw, 0.95rem);
+  color: rgba(255, 143, 171, 0.75);
+  white-space: nowrap;
+  animation: word-float 8s ease-in-out infinite;
+  text-shadow: 0 0 12px rgba(255, 77, 141, 0.4);
+}
+
+@keyframes word-float {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-12px);
+  }
+}
+
+/* ---------- 第四幕：全屏情书 ---------- */
+.letter-full {
+  width: min(640px, 90vw);
+  max-height: 78vh;
+  padding: clamp(28px, 5vw, 40px);
+  background: linear-gradient(145deg, rgba(42, 16, 56, 0.92) 0%, rgba(26, 11, 46, 0.88) 100%);
+  border: 1px solid rgba(255, 209, 102, 0.35);
+  border-radius: 20px;
+  box-shadow: 0 32px 100px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(16px);
+  animation: fade-up 0.9s ease both;
+  overflow-y: auto;
+}
+
+.letter-head {
+  font-size: 1.15rem;
+  color: var(--gold);
+  margin-bottom: 1.2rem;
+}
+
+.letter-body {
+  min-height: 160px;
+  font-family: var(--font-serif);
+  font-size: clamp(1.05rem, 2.8vw, 1.2rem);
+  line-height: 2;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.letter-sign {
+  margin-top: 1.8rem;
+  text-align: right;
+  font-size: 1rem;
+  color: var(--accent-2);
+}
+
+/* ---------- 第五幕：终章 ---------- */
+.finale-title {
+  font-size: clamp(2.5rem, 10vw, 4.5rem);
+  font-weight: 900;
+  background: linear-gradient(180deg, #fff, var(--accent), var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 40px rgba(255, 77, 141, 0.5));
+  animation: digit-pop 2.4s ease-in-out infinite;
+}
+
+.finale-sub {
+  margin-top: 1rem;
+  font-size: clamp(1rem, 3vw, 1.35rem);
+  letter-spacing: 0.25em;
+  color: var(--text-dim);
+  animation: fade-up 1s ease 0.3s both;
+}
+
+.finale-heart {
+  margin-top: 2rem;
+  font-size: clamp(3rem, 12vw, 5rem);
+  color: var(--accent);
+  animation: core-beat 1.5s ease-in-out infinite;
+  text-shadow: 0 0 48px rgba(255, 77, 141, 0.7);
+}
+
+/* 版权 */
+.copyright {
+  position: fixed;
+  right: 12px;
+  bottom: 8px;
+  z-index: 100;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+
+/* 点击涟漪 */
+.ripple {
+  position: fixed;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  pointer-events: none;
+  z-index: 50;
+  animation: ripple-out 0.9s ease-out forwards;
+}
+
+@keyframes ripple-out {
+  to {
+    width: 120px;
+    height: 120px;
+    margin: -60px 0 0 -60px;
+    opacity: 0;
+  }
+}

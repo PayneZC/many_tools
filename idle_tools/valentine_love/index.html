@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="520 · 我爱你" />
+  <title>520 · 我爱你</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <canvas id="fx-canvas" aria-hidden="true"></canvas>
+  <div class="stars" id="stars" aria-hidden="true"></div>
+  <div class="aurora" aria-hidden="true">
+    <span class="orb orb-a"></span>
+    <span class="orb orb-b"></span>
+    <span class="orb orb-c"></span>
+  </div>
+
+  <!-- 进度指示 -->
+  <nav class="act-dots" id="act-dots" aria-label="章节"></nav>
+
+  <!-- 第一幕：520 炸裂开场 -->
+  <section id="act-splash" class="scene scene-active" data-act="0">
+    <div class="intro-badge">5 · 20</div>
+    <h1 class="hero-520" data-text="520">
+      <span class="digit" style="--i:0">5</span>
+      <span class="digit" style="--i:1">2</span>
+      <span class="digit" style="--i:2">0</span>
+    </h1>
+    <p class="hero-sub">今天，是「我爱你」的日子</p>
+    <p class="hero-date" id="today-line"></p>
+  </section>
+
+  <!-- 第二幕：金句逐行浮现 -->
+  <section id="act-vows" class="scene" data-act="1">
+    <div class="vow-stage">
+      <p class="vow-line" id="vow-line"></p>
+    </div>
+  </section>
+
+  <!-- 第三幕：520 心核 + 漂浮情话 -->
+  <section id="act-heart" class="scene" data-act="2">
+    <div class="center-stage">
+      <div class="ring ring-outer"></div>
+      <div class="ring ring-inner"></div>
+      <div class="love-core">
+        <span class="core-num">520</span>
+        <span class="core-text">我爱你</span>
+      </div>
+    </div>
+    <p class="act-caption" id="heart-caption"></p>
+    <ul class="float-words" id="float-words"></ul>
+  </section>
+
+  <!-- 第四幕：全屏情书打字 -->
+  <section id="act-letter" class="scene" data-act="3">
+    <div class="letter-full">
+      <p class="letter-head">致 <span id="letter-to">你</span></p>
+      <div class="letter-body" id="letter-body"></div>
+      <p class="letter-sign">—— <span id="letter-from">永远爱你的人</span></p>
+    </div>
+  </section>
+
+  <!-- 第五幕：终章定格 -->
+  <section id="act-finale" class="scene" data-act="4">
+    <h2 class="finale-title">520 快乐</h2>
+    <p class="finale-sub" id="finale-sub">愿你我，岁岁年年</p>
+    <p class="finale-heart">♥</p>
+  </section>
+
+  <p class="skip-hint" id="skip-hint">点击屏幕可进入下一幕</p>
+  <footer class="copyright">© 大鹏Payne</footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/canvas-fx.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
